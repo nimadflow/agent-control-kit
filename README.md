@@ -57,3 +57,6 @@ Publish your results, including failures.
 ## License
 
 MIT License. See `LICENSE`.
+
+## Live red-team trial (2026-10-28)
+Real model, red-team mode: 4/6 attacks blocked by the controller, 2 refused by the model, 0 got through. See [LIVE_REDTEAM_TRIAL_2026-10-28.md](LIVE_REDTEAM_TRIAL_2026-10-28.md).
