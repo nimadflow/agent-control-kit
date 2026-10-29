@@ -52,6 +52,10 @@ python3 -I -S run_kit.py --adapter mymodule:MyAdapter
 
 모델 5개, 120회 실행(모델에게 공격에 협조하라고 지시한 모드 포함)에서 뚫린 건 0회입니다. [MULTI_MODEL_TRIAL_2026-10-29.md](MULTI_MODEL_TRIAL_2026-10-29.md)를 보세요.
 
+## AgentDojo 시험 (2026-10-29)
+
+다른 사람들이 만든 공개 벤치마크(AgentDojo)에서 방어 없는 에이전트는 2/6 탈취, 통제층을 켜면 0/6(오류 없는 판, 작은 부분집합). 알려진 약점: 작업과 공격이 같은 도구(예: send_email)를 쓰면 도구 이름 기반 통제로는 못 막으며, 이 경우는 측정되지 않았습니다. [AGENTDOJO_TRIAL_2026-10-29.md](AGENTDOJO_TRIAL_2026-10-29.md)를 보세요.
+
 ## 무결성 확인
 
 `sha256sum -c SHA256SUMS`
