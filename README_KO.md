@@ -48,6 +48,10 @@ python3 -I -S run_kit.py --adapter mymodule:MyAdapter
 
 실패를 포함해 결과를 공개해 주세요.
 
+## 다중 모델 시험 (2026-10-29)
+
+모델 5개, 120회 실행(모델에게 공격에 협조하라고 지시한 모드 포함)에서 뚫린 건 0회입니다. [MULTI_MODEL_TRIAL_2026-10-29.md](MULTI_MODEL_TRIAL_2026-10-29.md)를 보세요.
+
 ## 무결성 확인
 
 `sha256sum -c SHA256SUMS`
