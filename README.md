@@ -62,6 +62,7 @@ MIT License. See `LICENSE`.
 Real model, red-team mode: 4/6 attacks blocked by the controller, 2 refused by the model, 0 got through. See [LIVE_REDTEAM_TRIAL_2026-10-28.md](LIVE_REDTEAM_TRIAL_2026-10-28.md).
 
 Multi-model run (several models x normal/cooperative modes): `python3 live_trial/multi_model_trial.py` (add `--mock` for offline).
+AgentDojo prompt-injection run (public ETH benchmark, no defense vs controller as tool-call gate): `pip install agentdojo` then `python3 live_trial/agentdojo_trial.py` (add `--mock` for offline).
 
 ## Multi-model trial (2026-10-29)
 5 models, 120 runs, including a mode where the model is told to cooperate with the attack: 0 got through. See [MULTI_MODEL_TRIAL_2026-10-29.md](MULTI_MODEL_TRIAL_2026-10-29.md).
