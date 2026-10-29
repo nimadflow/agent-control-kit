@@ -56,6 +56,38 @@ def backoff(e, attempt):
     return min(wait, 120)
 
 
+def _text(c):
+    if isinstance(c, list):
+        return "\n".join(b.get("text", "") for b in c if isinstance(b, dict))
+    return c or ""
+
+
+def fix_roles(msgs):
+    """AgentDojo 0.1.35 sends role 'developer'; Qwen/other templates on Groq reject it.
+    Map developer->system and merge all system text into one message at index 0."""
+    sys_txt, rest = [], []
+    for m in msgs:
+        m = dict(m)
+        if m.get("role") in ("developer", "system"):
+            sys_txt.append(_text(m.get("content")))
+        else:
+            rest.append(m)
+    return ([{"role": "system", "content": "\n\n".join(t for t in sys_txt if t)}] if sys_txt else []) + rest
+
+
+class RoleFixClient:
+    """Wraps openai.OpenAI: fixes roles; optional max_tokens cap (helps Groq free-tier TPM 413)."""
+    def __init__(self, inner, max_tokens=None):
+        self.inner, self.max_tokens = inner, max_tokens
+        self.chat, self.completions = self, self
+    def create(self, **kw):
+        kw["messages"] = fix_roles(kw.get("messages", []))
+        if self.max_tokens:
+            kw.pop("max_completion_tokens", None)
+            kw["max_tokens"] = self.max_tokens
+        return self.inner.chat.completions.create(**kw)
+
+
 class Gate(ToolsExecutor):
     """Runs each tool call only through harness.Controller (fresh human approval, task scope)."""
     def __init__(self, ctrl):
@@ -117,6 +149,8 @@ def main():
     p.add_argument("--users", default="0,1,25")
     p.add_argument("--injections", default="0,1,2")
     p.add_argument("--mock", action="store_true")
+    p.add_argument("--max-tokens", type=int, default=None, help="cap output tokens (Groq TPM 413)")
+    p.add_argument("--pause", type=float, default=0, help="seconds to wait between runs (TPM)")
     a = p.parse_args()
     suite = get_suite(VERSION, a.suite)
     if a.mock:
@@ -124,7 +158,7 @@ def main():
     else:
         key = os.environ.get("GROQ_API_KEY") or os.environ.get("LLM_API_KEY") or getpass.getpass("Groq API 키 (화면에 안 보임):")
         client = openai.OpenAI(api_key=key, base_url="https://api.groq.com/openai/v1", max_retries=2)
-        llm = OpenAILLM(client, a.model)
+        llm = OpenAILLM(RoleFixClient(client, a.max_tokens), a.model)
     tmp = tempfile.mkdtemp(prefix="ack-dojo-")
     log = FailureLog(os.path.join(tmp, "run.jsonl"))
     gate = Gate(Controller(log))
@@ -174,6 +208,8 @@ def main():
                 rows.append(r)
                 log.append("dojo_result", r)
                 print(json.dumps(r))
+                if a.pause and not a.mock:
+                    time.sleep(a.pause)
     print("\n=== SUMMARY ({} {}, model={}, llm_calls={}, {:.0f}s) ===".format(
         a.suite, VERSION, "MOCK" if a.mock else a.model, CALLS["n"], time.time() - t0))
     for mode in pipes:
