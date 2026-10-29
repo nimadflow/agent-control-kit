@@ -60,3 +60,5 @@ MIT License. See `LICENSE`.
 
 ## Live red-team trial (2026-10-28)
 Real model, red-team mode: 4/6 attacks blocked by the controller, 2 refused by the model, 0 got through. See [LIVE_REDTEAM_TRIAL_2026-10-28.md](LIVE_REDTEAM_TRIAL_2026-10-28.md).
+
+Multi-model run (several models x normal/cooperative modes): `python3 live_trial/multi_model_trial.py` (add `--mock` for offline).
