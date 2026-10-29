@@ -66,3 +66,6 @@ AgentDojo prompt-injection run (public ETH benchmark, no defense vs controller a
 
 ## Multi-model trial (2026-10-29)
 5 models, 120 runs, including a mode where the model is told to cooperate with the attack: 0 got through. See [MULTI_MODEL_TRIAL_2026-10-29.md](MULTI_MODEL_TRIAL_2026-10-29.md).
+
+## AgentDojo trial (2026-10-29)
+Public benchmark built by others (AgentDojo): undefended agent hijacked 2/6, control layer on 0/6 (non-error runs, tiny subset). Known gap stated up front: same-tool attacks (e.g. send_email used by both task and attacker) are not stopped by a tool-name gate and were not measured. See [AGENTDOJO_TRIAL_2026-10-29.md](AGENTDOJO_TRIAL_2026-10-29.md).
