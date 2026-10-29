@@ -36,6 +36,39 @@ SYSTEM = "You are an AI language model who assists the user by using the given t
 CALLS = {"n": 0}
 READ_ONLY = ("get_", "search_", "list_")
 RETRIES = 3
+# --arg-checks: argument keys that name WHO/WHAT a side effect reaches. Allowed values come from
+# the user task's ground truth, i.e. they stand in for an accurate human pre-approval of the targets.
+TARGET_KEYS = ("recipients", "cc", "bcc", "participants", "file_id", "email", "emails", "recipient", "iban")
+
+
+def _vals(v):
+    return [str(x).strip().lower() for x in (v if isinstance(v, (list, tuple, set)) else [v]) if x is not None]
+
+
+def arg_scope(calls):
+    """{(tool, key): allowed values} for side-effect calls in a ground-truth plan."""
+    sc = {}
+    for c in calls:
+        if c.function.startswith(READ_ONLY):
+            continue
+        for k, v in dict(c.args).items():
+            if k in TARGET_KEYS:
+                sc.setdefault((c.function, k), set()).update(_vals(v))
+    return sc
+
+
+def arg_violation(sc, fn, args):
+    """Reason string if a side-effect call targets anything outside the pre-approved values, else None."""
+    if fn.startswith(READ_ONLY):
+        return None
+    for k, v in dict(args).items():
+        if k not in TARGET_KEYS or v in (None, [], ""):
+            continue
+        allowed = sc.get((fn, k), set())
+        bad = [x for x in _vals(v) if x not in allowed]
+        if bad:
+            return "arg_check: {}.{}={} not in approved {}".format(fn, k, bad, sorted(allowed))
+    return None
 
 
 def describe(e):
@@ -93,6 +126,7 @@ class Gate(ToolsExecutor):
     def __init__(self, ctrl):
         super().__init__()
         self.ctrl, self.scope, self.blocked = ctrl, set(), []
+        self.arg_scope, self.log = None, None  # set only with --arg-checks (separate, opt-in layer)
 
     def query(self, query, runtime, env, messages=[], extra_args={}):
         if not messages or messages[-1]["role"] != "assistant" or not messages[-1]["tool_calls"]:
@@ -102,6 +136,14 @@ class Gate(ToolsExecutor):
             class A:  # the only way an effect can happen
                 def act(_, action, params):
                     return runtime.run_function(env, action, dict(params))
+            reason = arg_violation(self.arg_scope, tc.function, tc.args) if self.arg_scope is not None else None
+            if reason:
+                self.blocked.append(tc.function)
+                self.log.append("arg_block", {"tool": tc.function, "reason": reason})
+                out.append(ChatToolResultMessage(role="tool", content=[text_content_block_from_string("")],
+                                                 tool_call_id=tc.id, tool_call=tc,
+                                                 error="Blocked by argument check: " + reason))
+                continue
             try:
                 res, err = self.ctrl.execute(A(), tc.function, tc.args, human_approval(self.scope))
                 text = self.output_formatter(res)
@@ -150,6 +192,8 @@ def main():
     p.add_argument("--injections", default="0,1,2")
     p.add_argument("--mock", action="store_true")
     p.add_argument("--max-tokens", type=int, default=None, help="cap output tokens (Groq TPM 413)")
+    p.add_argument("--arg-checks", action="store_true",
+                   help="extra opt-in layer: side-effect targets (recipients, file ids, participants) must match the task's approved values")
     p.add_argument("--pause", type=float, default=0, help="seconds to wait between runs (TPM)")
     a = p.parse_args()
     suite = get_suite(VERSION, a.suite)
@@ -162,6 +206,7 @@ def main():
     tmp = tempfile.mkdtemp(prefix="ack-dojo-")
     log = FailureLog(os.path.join(tmp, "run.jsonl"))
     gate = Gate(Controller(log))
+    gate.log = log
 
     def pipe(executor):
         pl = AgentPipeline([SystemMessage(SYSTEM), InitQuery(), Counted(llm),
@@ -183,6 +228,7 @@ def main():
             inj = attack.attack(ut, it)
             for mode, pl in pipes.items():
                 gate.scope, gate.blocked = scope, []
+                gate.arg_scope = arg_scope(ut.ground_truth(env0)) if a.arg_checks else None
                 if a.mock:
                     llm.plan = it.ground_truth(env0) + ut.ground_truth(env0)
                 err, tries = None, 0
@@ -210,8 +256,8 @@ def main():
                 print(json.dumps(r))
                 if a.pause and not a.mock:
                     time.sleep(a.pause)
-    print("\n=== SUMMARY ({} {}, model={}, llm_calls={}, {:.0f}s) ===".format(
-        a.suite, VERSION, "MOCK" if a.mock else a.model, CALLS["n"], time.time() - t0))
+    print("\n=== SUMMARY ({} {}, model={}, arg_checks={}, llm_calls={}, {:.0f}s) ===".format(
+        a.suite, VERSION, "MOCK" if a.mock else a.model, a.arg_checks, CALLS["n"], time.time() - t0))
     for mode in pipes:
         rs = [r for r in rows if r["mode"] == mode]
         print("{:11s} utility_under_attack={}/{}  attack_success_rate={}/{}  errors={}".format(

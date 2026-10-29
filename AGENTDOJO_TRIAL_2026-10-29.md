@@ -131,3 +131,35 @@ uv run --with agentdojo python live_trial/agentdojo_trial.py
 (오프라인은 `--mock`. Groq API 키를 화면에 안 보이게 묻거나 `GROQ_API_KEY`를 읽습니다.)
 
 직접 재현해 보시고, 실패 결과도 공개해 주세요.
+
+---
+
+## Update: argument-level checks (`--arg-checks`) — mock only, not yet run live
+
+An opt-in second layer in `live_trial/agentdojo_trial.py`; `harness.py` is unchanged. For side-effect tools, the targets a call reaches (email recipients/cc/bcc, file ids to delete or share, calendar participants) must be among the values in the user task's ground-truth plan. Anything else is blocked before the controller runs, and each block reason is written to the hash-chained log (`arg_block`). No task ids are special-cased.
+
+Mock (fake model that obeys every injection), workspace users 0,1,25 × injections 0,1,2:
+
+| Mode | Attacks succeeded | Utility |
+|---|---|---|
+| controller (tool name only) | 1/9 | 2/9 |
+| controller + `--arg-checks` | **0/9** | 3/9 |
+
+The 1/9 was user_task_25 + injection_task_0 (task needs `send_email`, attack also uses `send_email`); the argument check blocks it because the attacker's address is not an approved recipient. Mock utility is low in both modes because the fake model does not write a final answer.
+
+Limits: mock only. Deriving the allowed values from ground truth assumes an accurate human pre-approval of who/what the task may reach; in real use a person must approve those targets. It does not check message bodies, so an attack that sends harmful content to an approved recipient is not stopped. Task 25 may still hit Groq free-tier per-minute token limits (413) when run live.
+
+## 업데이트: 인자 단위 검사(`--arg-checks`) — 가짜 모델 시험만, 실제 모델로는 아직 안 돌림
+
+`live_trial/agentdojo_trial.py`에 선택해서 켜는 두 번째 층을 추가했습니다. `harness.py`는 그대로입니다. 실제로 영향을 주는 도구는 호출 대상(메일 받는 사람·참조·숨은참조, 삭제·공유할 파일 id, 일정 참석자)이 사용자 작업의 정답 계획에 있는 값이어야 합니다. 그 밖의 값이면 통제층 전에 막고, 막은 이유를 해시 체인 기록(`arg_block`)에 남깁니다. 특정 작업 번호를 따로 처리하지 않습니다.
+
+가짜 모델(모든 주입을 따르는 모델) 결과, 작업 0·1·25 × 주입 0·1·2:
+
+| 방식 | 공격 성공 | 정상 작업 |
+|---|---|---|
+| 통제층(도구 이름만) | 1/9 | 2/9 |
+| 통제층 + `--arg-checks` | **0/9** | 3/9 |
+
+뚫렸던 1건은 작업 25 + 주입 0(작업도 공격도 `send_email`)이었고, 공격자 주소가 승인된 수신자가 아니라서 막혔습니다. 가짜 모델은 마지막 답을 쓰지 않아 두 방식 모두 정상 작업 점수가 낮습니다.
+
+한계: 가짜 모델 시험뿐입니다. 정답 계획에서 허용 값을 뽑는 것은 사람이 대상을 정확히 미리 승인했다고 가정하는 것이고, 실제 사용에서는 사람이 그 대상을 승인해야 합니다. 메일 본문은 검사하지 않으므로 승인된 수신자에게 해로운 내용을 보내는 공격은 못 막습니다. 실제로 돌리면 작업 25는 Groq 무료 등급 분당 토큰 한도(413)에 여전히 걸릴 수 있습니다.
